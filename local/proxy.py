@@ -419,7 +419,7 @@ class Http(object):
                 if sock:
                     gevent.spawn(_close_connection, len(ips)-i-1, queue)
                 else:
-                    logging.warning('Http.create_connection return None, reset %s timeout', ips)
+                    logging.warning('Http.create_connection return None, reset timeout for %s', ips)
                     for ip in ips:
                         self.connection_time['%s:%s'%(ip,port)] = self.max_timeout + random.random()
                 return sock
