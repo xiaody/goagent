@@ -11,6 +11,7 @@
 #      Yonsm          <YonsmGuo@gmail.com>
 #      Ming Bai       <mbbill@gmail.com>
 #      Bin Yu         <yubinlove1991@gmail.com>
+#      Wang Wei Qiang <wwqgtxx@gmail.com>
 
 __version__ = '2.1.11'
 __config__  = 'proxy.ini'
@@ -654,28 +655,29 @@ class Common(object):
         self.CONFIG = ConfigParser.ConfigParser()
         self.CONFIG.read(os.path.join(os.path.dirname(__file__), __config__))
 
-        self.LISTEN_IP            = self.CONFIG.get('listen', 'ip')
-        self.LISTEN_PORT          = self.CONFIG.getint('listen', 'port')
-        self.LISTEN_VISIBLE       = self.CONFIG.getint('listen', 'visible')
+        self.LISTEN_IP            = self.CONFIG.get('listen', 'ip') if self.CONFIG.has_option('listen', 'ip') else '127.0.0.1'
+        self.LISTEN_PORT          = self.CONFIG.getint('listen', 'port') if self.CONFIG.has_option('listen', 'port') else 8087
+        self.LISTEN_VISIBLE       = self.CONFIG.getint('listen', 'visible') if self.CONFIG.has_option('listen', 'visible') else 1
         self.LISTEN_DEBUGINFO     = self.CONFIG.getint('listen', 'debuginfo') if self.CONFIG.has_option('listen', 'debuginfo') else 0
 
         self.GAE_APPIDS           = re.findall('[\w\-]+', self.CONFIG.get('gae', 'appid').replace('.appspot.com', ''))
-        self.GAE_PASSWORD         = self.CONFIG.get('gae', 'password').strip()
-        self.GAE_PATH             = self.CONFIG.get('gae', 'path')
-        self.GAE_PROFILE          = self.CONFIG.get('gae', 'profile')
-        self.GAE_CRLF             = self.CONFIG.getint('gae', 'crlf')
+        self.GAE_PASSWORD         = self.CONFIG.get('gae', 'password').strip() if self.CONFIG.has_option('gae', 'path') else ''.strip()
+        self.GAE_PATH             = self.CONFIG.get('gae', 'path') if self.CONFIG.has_option('gae', 'path') else '/2'
+        self.GAE_PROFILE          = self.CONFIG.get('gae', 'profile') if self.CONFIG.has_option('gae', 'profile') else 'google_cn'
+        self.GAE_CRLF             = self.CONFIG.getint('gae', 'crlf') if self.CONFIG.has_option('gae', 'crlf') else 1
+        self.GAE_AUTOSWICH        = self.CONFIG.getint('gae', 'autoswtich') if self.CONFIG.has_option('gae', 'autoswtich') else 1
 
-        self.PAAS_ENABLE           = self.CONFIG.getint('paas', 'enable')
-        self.PAAS_LISTEN           = self.CONFIG.get('paas', 'listen')
+        self.PAAS_ENABLE           = self.CONFIG.getint('paas', 'enable') if self.CONFIG.has_option('paas', 'enable') else 0
+        self.PAAS_LISTEN           = self.CONFIG.get('paas', 'listen') if self.CONFIG.has_option('paas', 'listen') else '127.0.0.1:8088'
         self.PAAS_PASSWORD         = self.CONFIG.get('paas', 'password') if self.CONFIG.has_option('paas', 'password') else ''
-        self.PAAS_FETCHSERVER      = self.CONFIG.get('paas', 'fetchserver')
+        self.PAAS_FETCHSERVER      = self.CONFIG.get('paas', 'fetchserver') if self.CONFIG.has_option('paas', 'fetchserver') else ''
 
         if self.CONFIG.has_section('dns'):
-            self.DNS_ENABLE = self.CONFIG.getint('dns', 'enable')
-            self.DNS_LISTEN = self.CONFIG.get('dns', 'listen')
-            self.DNS_REMOTE = self.CONFIG.get('dns', 'remote')
-            self.DNS_CACHESIZE = self.CONFIG.getint('dns', 'cachesize')
-            self.DNS_TIMEOUT   = self.CONFIG.getint('dns', 'timeout')
+            self.DNS_ENABLE = self.CONFIG.getint('dns', 'enable') if self.CONFIG.has_option('dns', 'enable') else 0
+            self.DNS_LISTEN = self.CONFIG.get('dns', 'listen') if self.CONFIG.has_option('dns', 'listen') else '127.0.0.1:53'
+            self.DNS_REMOTE = self.CONFIG.get('dns', 'remote') if self.CONFIG.has_option('dns', 'remote') else '8.8.8.8'
+            self.DNS_CACHESIZE = self.CONFIG.getint('dns', 'cachesize') if self.CONFIG.has_option('dns', 'cachesize') else 5000
+            self.DNS_TIMEOUT   = self.CONFIG.getint('dns', 'timeout') if self.CONFIG.has_option('dns', 'timeout') else 2
         else:
             self.DNS_ENABLE = 0
 
@@ -984,7 +986,8 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                                 try:
                                     socket.create_connection((host, 443), timeout=2).close()
                                 except socket.error:
-                                    need_switch = True
+                                    if common.GAE_AUTOSWICH == 1:
+                                        need_switch = True
                                     break
                             if need_switch:
                                 common.GAE_PROFILE = 'google_hk'
