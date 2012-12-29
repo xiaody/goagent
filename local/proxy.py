@@ -986,7 +986,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                                 try:
                                     socket.create_connection((host, 443), timeout=2).close()
                                 except socket.error:
-                                    if common.GAE_AUTOSIWCH == 1:
+                                    if common.GAE_AUTOSWITCH == 1:
                                         need_switch = True
                                     break
                             if need_switch:
