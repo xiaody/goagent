@@ -665,7 +665,7 @@ class Common(object):
         self.GAE_PATH             = self.CONFIG.get('gae', 'path') if self.CONFIG.has_option('gae', 'path') else '/2'
         self.GAE_PROFILE          = self.CONFIG.get('gae', 'profile') if self.CONFIG.has_option('gae', 'profile') else 'google_cn'
         self.GAE_CRLF             = self.CONFIG.getint('gae', 'crlf') if self.CONFIG.has_option('gae', 'crlf') else 1
-        self.GAE_AUTOSWICH        = self.CONFIG.getint('gae', 'autoswtich') if self.CONFIG.has_option('gae', 'autoswtich') else 1
+        self.GAE_AUTOSWITCH        = self.CONFIG.getint('gae', 'autoswitch') if self.CONFIG.has_option('gae', 'autoswitch') else 1
 
         self.PAAS_ENABLE           = self.CONFIG.getint('paas', 'enable') if self.CONFIG.has_option('paas', 'enable') else 0
         self.PAAS_LISTEN           = self.CONFIG.get('paas', 'listen') if self.CONFIG.has_option('paas', 'listen') else '127.0.0.1:8088'
@@ -986,7 +986,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                                 try:
                                     socket.create_connection((host, 443), timeout=2).close()
                                 except socket.error:
-                                    if common.GAE_AUTOSWICH == 1:
+                                    if common.GAE_AUTOSIWCH == 1:
                                         need_switch = True
                                     break
                             if need_switch:
@@ -1046,7 +1046,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
         host, _, port = path.rpartition(':')
         port = int(port)
         if host.endswith(common.GOOGLE_SITES) and host not in common.GOOGLE_WITHGAE:
-            logging.info('%s:%s "%s %s:%d HTTP/1.1" - -' % (remote_addr, remote_port, method, host, port))
+            logging.info('%s:%s "FWD %s %s:%d HTTP/1.1" - -' % (remote_addr, remote_port, method, host, port))
             http_headers = ''.join('%s: %s\r\n' % (k, v) for k, v in headers.iteritems())
             sock.send('HTTP/1.1 200 OK\r\n\r\n')
             if not common.PROXY_ENABLE:
@@ -1127,11 +1127,11 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
             payload = rfile.read(content_length) if content_length else None
             response = http.request(method, path, payload, headers, crlf=common.GAE_CRLF)
             if not response:
-                logging.warning('http.request "%s %s") return %r', method, path, response)
+                logging.warning('FWD http.request "%s %s") return %r', method, path, response)
                 return
             if response.status in (400, 405):
                 common.GAE_CRLF = 0
-            logging.info('%s:%s "%s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.msg.get('Content-Length', '-')))
+            logging.info('%s:%s "FWD %s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.msg.get('Content-Length', '-')))
             wfile = sock.makefile('wb', 0)
             wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join('%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
             wfile.write(response.read())
@@ -1140,7 +1140,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
             if e[0] not in (10053, errno.EPIPE):
                 raise
             elif e[0] in (10054, 10063):
-                logging.warn('http.request "%s %s" failed:%s, try addto `withgae`', method, path, e)
+                logging.warn('FWD http.request "%s %s" failed:%s, try addto `withgae`', method, path, e)
                 common.GOOGLE_WITHGAE.add(host)
         except Exception as e:
             logging.warn('gaeproxy_handler direct(%s) Error', host)
@@ -1212,7 +1212,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                 response.close()
                 return
 
-            logging.info('%s:%s "%s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.getheader('Content-Length', '-')))
+            logging.info('%s:%s "GAE %s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.getheader('Content-Length', '-')))
 
             if response.status == 206:
                 fetchservers = [re.sub(r'//\w+\.appspot\.com', '//%s.appspot.com' % x, common.GAE_FETCHSERVER) for x in common.GAE_APPIDS]
@@ -1324,7 +1324,7 @@ def paasproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()})
             content_length = int(headers.get('Content-Length', 0))
             payload = rfile.read(content_length) if content_length else ''
             response = paas_urlfetch(method, path, headers, payload, common.PAAS_FETCHSERVER, password=common.PAAS_PASSWORD)
-            logging.info('%s:%s "%s %s HTTP/1.1" %s -' % (remote_addr, remote_port, method, path, response.status))
+            logging.info('%s:%s "PAAS %s %s HTTP/1.1" %s -' % (remote_addr, remote_port, method, path, response.status))
         except socket.error as e:
             if e.reason[0] not in (11004, 10051, 10060, 'timed out', 10054):
                 raise
