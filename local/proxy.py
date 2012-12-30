@@ -298,9 +298,24 @@ class CertUtil(object):
                 return CertUtil._get_cert(commonname, certdir, ca_keyfile, ca_certfile, sans)
 
     @staticmethod
+    def import_ca(certfile):
+        dirname, basename = os.path.split(certfile)
+        if sys.platform.startswith('win'):
+            cmd = 'cd /d "%s" && certmgr.exe -add %s -c -s -r localMachine Root >NUL' % (dirname, basename)
+        elif sys.platform == 'cygwin':
+            cmd = 'cmd /c "pushd %s && certmgr.exe -add %s -c -s -r localMachine Root"' % (dirname, basename)
+        elif sys.platform == 'darwin':
+            cmd = 'sudo security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" "%s"' % certfile
+        elif sys.platform.startswith('linux'):
+            cmd = 'sudo cp "%s" /usr/local/share/ca-certificates/goagent.crt && sudo update-ca-certificates' % certfile
+        else:
+            cmd = ''
+        return os.system(cmd)
+
+    @staticmethod
     def check_ca():
         #Check CA exists
-        capath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CA.key')
+        capath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CA.crt')
         if not os.path.exists(capath):
             if not OpenSSL:
                 logging.critical('CA.key is not exist and OpenSSL is disabled, ABORT!')
@@ -309,13 +324,10 @@ class CertUtil(object):
                 os.system('certmgr.exe -del -n "GoAgent CA" -c -s -r localMachine Root')
             [os.remove(os.path.join('certs', x)) for x in os.listdir('certs')]
             CertUtil.dump_ca('CA.key', 'CA.crt')
-            #Check CA imported
-        cmd = {
-            'win32'  : r'cd /d "%s" && certmgr.exe -add CA.crt -c -s -r localMachine Root >NUL' % os.path.dirname(capath),
-            }.get(sys.platform)
-        if cmd and os.system(cmd) != 0:
+        #Check CA imported
+        if os.name =='nt' and CertUtil.import_ca(capath) != 0:
             logging.warning('GoAgent install trusted root CA certificate failed, Please run goagent by administrator/root.')
-            #Check Certs Dir
+        #Check Certs Dir
         certdir = os.path.join(os.path.dirname(__file__), 'certs')
         if not os.path.exists(certdir):
             os.makedirs(certdir)
