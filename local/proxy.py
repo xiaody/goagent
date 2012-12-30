@@ -1598,6 +1598,8 @@ def pre_start():
             sys.stdout.write('Double click addto-startup.vbs could add goagent to autorun programs. :)\n')
         if not common.LISTEN_VISIBLE:
             ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+        else:
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 1)
         if common.LOVE_ENABLE:
             if common.LOVE_TIMESTAMP.strip():
                 common.LOVE_TIMESTAMP = int(common.LOVE_TIMESTAMP)
