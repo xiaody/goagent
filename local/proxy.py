@@ -1082,7 +1082,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                     start_handshake = time.time()
                     remote_addr = '%s:%d' % remote.getpeername()[:2]
                     pongcallback=lambda:http.connection_time.__setitem__(remote_addr,http.connection_time.get(remote_addr,0)+time.time()-start_handshake)
-                    http.forward_socket(sock, remote, pongcallback=pongcallback)
+                    http.forward_socket(sock, remote, pongcallback=None)
             else:
                 hostip = random.choice(common.GOOGLE_HOSTS)
                 proxy_info = (common.PROXY_USERNAME, common.PROXY_PASSWROD, common.PROXY_HOST, common.PROXY_PORT)
