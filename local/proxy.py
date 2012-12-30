@@ -502,7 +502,7 @@ class Http(object):
         except socket.error as e:
             logging.error('Http.create_connection_withproxy error %s', e)
 
-    def forward_socket(self, local, remote, timeout=60, tick=2, bufsize=__bufsize__, maxping=None, maxpong=None, bitmask=None):
+    def forward_socket(self, local, remote, timeout=60, tick=2, bufsize=__bufsize__, maxping=None, maxpong=None, pongcallback=None, bitmask=None):
         try:
             timecount = timeout
             while 1:
@@ -518,12 +518,21 @@ class Http(object):
                         if bitmask:
                             data = ''.join(chr(ord(x)^bitmask) for x in data)
                         if data:
-                            if sock is local:
-                                remote.sendall(data)
-                                timecount = maxping or timeout
-                            else:
+                            if sock is remote:
                                 local.sendall(data)
                                 timecount = maxpong or timeout
+                                if pongcallback:
+                                    try:
+                                        #remote_addr = '%s:%s'%remote.getpeername()[:2]
+                                        #logging.debug('call remote=%s pongcallback=%s', remote_addr, pongcallback)
+                                        pongcallback()
+                                    except Exception as e:
+                                        logging.warning('remote=%s pongcallback=%s failed: %s', remote, pongcallback, e)
+                                    finally:
+                                        pongcallback = None
+                            else:
+                                remote.sendall(data)
+                                timecount = maxping or timeout
                         else:
                             return
         except socket.error as e:
@@ -1070,7 +1079,10 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                         else:
                             raise
                 if hasattr(remote, 'fileno'):
-                    http.forward_socket(sock, remote)
+                    start_handshake = time.time()
+                    remote_addr = '%s:%d' % remote.getpeername()[:2]
+                    pongcallback=lambda:http.connection_time.__setitem__(remote_addr,http.connection_time.get(remote_addr,0)+time.time()-start_handshake)
+                    http.forward_socket(sock, remote, pongcallback=pongcallback)
             else:
                 hostip = random.choice(common.GOOGLE_HOSTS)
                 proxy_info = (common.PROXY_USERNAME, common.PROXY_PASSWROD, common.PROXY_HOST, common.PROXY_PORT)
