@@ -619,8 +619,7 @@ class Http(object):
         else:
             host, _, port = netloc.rpartition(':')
             port = int(port)
-        if query:
-            path += '?' + query
+        path += '?' + query
 
         if 'Host' not in headers:
             headers['Host'] = host
