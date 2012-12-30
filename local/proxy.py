@@ -1065,11 +1065,11 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                 if host not in http.dns:
                     http.dns[host] = http.dns.default_factory(common.GOOGLE_HOSTS)
                 data = sock.recv(1024)
-                for i in xrange(8):
+                for i in xrange(4):
                     try:
-                        remote = http.create_connection((host, port), 16)
+                        remote = http.create_connection((host, port), 6)
                         if remote is None:
-                            logging.error('http.create_connection((host=%r, port=%r), 16) timeout', host, port)
+                            logging.error('http.create_connection((host=%r, port=%r), 6) timeout', host, port)
                             continue
                         remote.sendall(data)
                     except socket.error as e:
