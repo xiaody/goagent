@@ -11,6 +11,7 @@
 #      Yonsm          <YonsmGuo@gmail.com>
 #      Ming Bai       <mbbill@gmail.com>
 #      Bin Yu         <yubinlove1991@gmail.com>
+#      Wang Wei Qiang <wwqgtxx@gmail.com>
 
 __version__ = '2.1.11'
 __config__  = 'proxy.ini'
@@ -654,28 +655,29 @@ class Common(object):
         self.CONFIG = ConfigParser.ConfigParser()
         self.CONFIG.read(os.path.join(os.path.dirname(__file__), __config__))
 
-        self.LISTEN_IP            = self.CONFIG.get('listen', 'ip')
-        self.LISTEN_PORT          = self.CONFIG.getint('listen', 'port')
-        self.LISTEN_VISIBLE       = self.CONFIG.getint('listen', 'visible')
+        self.LISTEN_IP            = self.CONFIG.get('listen', 'ip') if self.CONFIG.has_option('listen', 'ip') else '127.0.0.1'
+        self.LISTEN_PORT          = self.CONFIG.getint('listen', 'port') if self.CONFIG.has_option('listen', 'port') else 8087
+        self.LISTEN_VISIBLE       = self.CONFIG.getint('listen', 'visible') if self.CONFIG.has_option('listen', 'visible') else 1
         self.LISTEN_DEBUGINFO     = self.CONFIG.getint('listen', 'debuginfo') if self.CONFIG.has_option('listen', 'debuginfo') else 0
 
         self.GAE_APPIDS           = re.findall('[\w\-]+', self.CONFIG.get('gae', 'appid').replace('.appspot.com', ''))
-        self.GAE_PASSWORD         = self.CONFIG.get('gae', 'password').strip()
-        self.GAE_PATH             = self.CONFIG.get('gae', 'path')
-        self.GAE_PROFILE          = self.CONFIG.get('gae', 'profile')
-        self.GAE_CRLF             = self.CONFIG.getint('gae', 'crlf')
+        self.GAE_PASSWORD         = self.CONFIG.get('gae', 'password').strip() if self.CONFIG.has_option('gae', 'path') else ''.strip()
+        self.GAE_PATH             = self.CONFIG.get('gae', 'path') if self.CONFIG.has_option('gae', 'path') else '/2'
+        self.GAE_PROFILE          = self.CONFIG.get('gae', 'profile') if self.CONFIG.has_option('gae', 'profile') else 'google_cn'
+        self.GAE_CRLF             = self.CONFIG.getint('gae', 'crlf') if self.CONFIG.has_option('gae', 'crlf') else 1
+        self.GAE_AUTOSWITCH        = self.CONFIG.getint('gae', 'autoswitch') if self.CONFIG.has_option('gae', 'autoswitch') else 1
 
-        self.PAAS_ENABLE           = self.CONFIG.getint('paas', 'enable')
-        self.PAAS_LISTEN           = self.CONFIG.get('paas', 'listen')
+        self.PAAS_ENABLE           = self.CONFIG.getint('paas', 'enable') if self.CONFIG.has_option('paas', 'enable') else 0
+        self.PAAS_LISTEN           = self.CONFIG.get('paas', 'listen') if self.CONFIG.has_option('paas', 'listen') else '127.0.0.1:8088'
         self.PAAS_PASSWORD         = self.CONFIG.get('paas', 'password') if self.CONFIG.has_option('paas', 'password') else ''
-        self.PAAS_FETCHSERVER      = self.CONFIG.get('paas', 'fetchserver')
+        self.PAAS_FETCHSERVER      = self.CONFIG.get('paas', 'fetchserver') if self.CONFIG.has_option('paas', 'fetchserver') else ''
 
         if self.CONFIG.has_section('dns'):
-            self.DNS_ENABLE = self.CONFIG.getint('dns', 'enable')
-            self.DNS_LISTEN = self.CONFIG.get('dns', 'listen')
-            self.DNS_REMOTE = self.CONFIG.get('dns', 'remote')
-            self.DNS_CACHESIZE = self.CONFIG.getint('dns', 'cachesize')
-            self.DNS_TIMEOUT   = self.CONFIG.getint('dns', 'timeout')
+            self.DNS_ENABLE = self.CONFIG.getint('dns', 'enable') if self.CONFIG.has_option('dns', 'enable') else 0
+            self.DNS_LISTEN = self.CONFIG.get('dns', 'listen') if self.CONFIG.has_option('dns', 'listen') else '127.0.0.1:53'
+            self.DNS_REMOTE = self.CONFIG.get('dns', 'remote') if self.CONFIG.has_option('dns', 'remote') else '8.8.8.8'
+            self.DNS_CACHESIZE = self.CONFIG.getint('dns', 'cachesize') if self.CONFIG.has_option('dns', 'cachesize') else 5000
+            self.DNS_TIMEOUT   = self.CONFIG.getint('dns', 'timeout') if self.CONFIG.has_option('dns', 'timeout') else 2
         else:
             self.DNS_ENABLE = 0
 
@@ -984,7 +986,8 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                                 try:
                                     socket.create_connection((host, 443), timeout=2).close()
                                 except socket.error:
-                                    need_switch = True
+                                    if common.GAE_AUTOSWITCH == 1:
+                                        need_switch = True
                                     break
                             if need_switch:
                                 common.GAE_PROFILE = 'google_hk'
@@ -1043,7 +1046,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
         host, _, port = path.rpartition(':')
         port = int(port)
         if host.endswith(common.GOOGLE_SITES) and host not in common.GOOGLE_WITHGAE:
-            logging.info('%s:%s "%s %s:%d HTTP/1.1" - -' % (remote_addr, remote_port, method, host, port))
+            logging.info('%s:%s "FWD %s %s:%d HTTP/1.1" - -' % (remote_addr, remote_port, method, host, port))
             http_headers = ''.join('%s: %s\r\n' % (k, v) for k, v in headers.iteritems())
             sock.send('HTTP/1.1 200 OK\r\n\r\n')
             if not common.PROXY_ENABLE:
@@ -1124,11 +1127,11 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
             payload = rfile.read(content_length) if content_length else None
             response = http.request(method, path, payload, headers, crlf=common.GAE_CRLF)
             if not response:
-                logging.warning('http.request "%s %s") return %r', method, path, response)
+                logging.warning('FWD http.request "%s %s") return %r', method, path, response)
                 return
             if response.status in (400, 405):
                 common.GAE_CRLF = 0
-            logging.info('%s:%s "%s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.msg.get('Content-Length', '-')))
+            logging.info('%s:%s "FWD %s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.msg.get('Content-Length', '-')))
             wfile = sock.makefile('wb', 0)
             wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join('%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
             wfile.write(response.read())
@@ -1137,7 +1140,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
             if e[0] not in (10053, errno.EPIPE):
                 raise
             elif e[0] in (10054, 10063):
-                logging.warn('http.request "%s %s" failed:%s, try addto `withgae`', method, path, e)
+                logging.warn('FWD http.request "%s %s" failed:%s, try addto `withgae`', method, path, e)
                 common.GOOGLE_WITHGAE.add(host)
         except Exception as e:
             logging.warn('gaeproxy_handler direct(%s) Error', host)
@@ -1209,7 +1212,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                 response.close()
                 return
 
-            logging.info('%s:%s "%s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.getheader('Content-Length', '-')))
+            logging.info('%s:%s "GAE %s %s HTTP/1.1" %s %s' % (remote_addr, remote_port, method, path, response.status, response.getheader('Content-Length', '-')))
 
             if response.status == 206:
                 fetchservers = [re.sub(r'//\w+\.appspot\.com', '//%s.appspot.com' % x, common.GAE_FETCHSERVER) for x in common.GAE_APPIDS]
@@ -1321,7 +1324,7 @@ def paasproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()})
             content_length = int(headers.get('Content-Length', 0))
             payload = rfile.read(content_length) if content_length else ''
             response = paas_urlfetch(method, path, headers, payload, common.PAAS_FETCHSERVER, password=common.PAAS_PASSWORD)
-            logging.info('%s:%s "%s %s HTTP/1.1" %s -' % (remote_addr, remote_port, method, path, response.status))
+            logging.info('%s:%s "PAAS %s %s HTTP/1.1" %s -' % (remote_addr, remote_port, method, path, response.status))
         except socket.error as e:
             if e.reason[0] not in (11004, 10051, 10060, 'timed out', 10054):
                 raise
