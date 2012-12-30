@@ -408,8 +408,9 @@ class Http(object):
                 sock = queue.get()
         sock = None
         iplist = self.dns_resolve(host)
-        window = int(round(self.max_window/2.0))
+        window = (self.max_window+1)//2
         for i in xrange(self.max_retry):
+            window += i
             ips = heapq.nsmallest(window, iplist, key=lambda x:self.connection_time.get('%s:%s'%(x,port),0)) + random.sample(iplist, min(len(iplist), window))
             # print ips
             queue = gevent.queue.Queue()
@@ -459,8 +460,9 @@ class Http(object):
                 ssl_sock = queue.get()
         ssl_sock = None
         iplist = self.dns_resolve(host)
-        window = int(round(self.max_window/2.0))
+        window = (self.max_window+1)//2
         for i in xrange(self.max_retry):
+            window += i
             ips = heapq.nsmallest(window, iplist, key=lambda x:self.ssl_connection_time.get('%s:%s'%(x,port),0)) + random.sample(iplist, min(len(iplist), window))
             # print ips
             queue = gevent.queue.Queue()
@@ -1039,10 +1041,11 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
 
     remote_addr, remote_port = address
 
-    """do connect, convert fake https socket"""
+    """do connect, direct forward or convert fake https socket"""
     __realsock = None
     __realrfile = None
     if method == 'CONNECT':
+        """direct forward CONNECT request"""
         host, _, port = path.rpartition(':')
         port = int(port)
         if host.endswith(common.GOOGLE_SITES) and host not in common.GOOGLE_WITHGAE:
@@ -1057,7 +1060,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                     try:
                         remote = http.create_connection((host, port), 16)
                         if remote is None:
-                            logging.error('http.create_connection((host=%r, port=%r), 16)', host, port)
+                            logging.error('http.create_connection((host=%r, port=%r), 16) timeout', host, port)
                             continue
                         remote.sendall(data)
                     except socket.error as e:
@@ -1078,6 +1081,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                 http.forward_socket(sock, remote)
             return
         else:
+            """deploy fake cert to client"""
             keyfile, certfile = CertUtil.get_cert(host)
             logging.info('%s:%s "%s %s:%d HTTP/1.1" - -' % (remote_addr, remote_port, method, host, port))
             sock.sendall('HTTP/1.1 200 OK\r\n\r\n')
@@ -1087,7 +1091,7 @@ def gaeproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
                 sock = ssl.wrap_socket(__realsock, certfile=certfile, keyfile=keyfile, server_side=True, ssl_version=ssl.PROTOCOL_SSLv23)
             except Exception as e:
                 logging.exception('ssl.wrap_socket(__realsock=%r) failed: %s', __realsock, e)
-                sock = ssl.wrap_socket(__realsock, certfile=certfile, keyfile=keyfile, server_side=True,ssl_version=ssl.PROTOCOL_TLSv1)
+                sock = ssl.wrap_socket(__realsock, certfile=certfile, keyfile=keyfile, server_side=True, ssl_version=ssl.PROTOCOL_TLSv1)
             rfile = sock.makefile('rb', __bufsize__)
             try:
                 method, path, version, headers = http.parse_request(rfile)
@@ -1259,6 +1263,9 @@ def paas_urlfetch(method, url, headers, payload, fetchserver, **kwargs):
     if 'x-status' in response.msg:
         response.status = int(response.msg['x-status'])
         del response.msg['x-status']
+    if 'status' in response.msg:
+        response.status = int(response.msg['status'])
+        del response['status']
     return response
 
 def paasproxy_handler(sock, address, hls={'setuplock':gevent.coros.Semaphore()}):
