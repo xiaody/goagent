@@ -179,7 +179,6 @@ import traceback
 import hashlib
 import fnmatch
 import ConfigParser
-import httplib
 import urllib2
 import heapq
 import threading
